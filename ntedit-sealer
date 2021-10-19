@@ -38,7 +38,7 @@ gzip=gzip
 endif
 
 # Record run time and memory usage in a file using GNU time
-ifeq ($(time),True)
+ifeq ($(time),true)
 ifneq ($(shell command -v gtime),)
 log_time=command gtime -v -o $@.time
 else
@@ -56,17 +56,17 @@ protocol=$(shell dirname $(realpath $(MAKEFILE_LIST)))
 .SECONDARY:
 
 help:
-	@echo "ntEdit + Sealer assembly finishing protocol"
+	@echo "ntEdit+Sealer assembly finishing protocol"
 	@echo ""
-	@echo "For example, to run the pipeline on a draft assembly draft-assembly.fa with read files reads_1.fq.gz and reads_2.fq.gz, and k-mer lengths 80, 65 and 50:"
-	@echo "Usage: ./protocol-make run seqs=draft-assembly.fa reads='reads_1.fq.gz reads_2.fq.gz' k='80 65 50' b=5G [OPTION=VALUE]"
+	@echo "Usage: ntedit-sealer finish [OPTION=VALUE]"
 	@echo ""
 	@echo "General options:"
 	@echo "seqs			Draft assembly name [seqs]. File must have .fa extension"
 	@echo "reads			Read file(s). All files must have .fq.gz extension. If multiple read files, list must be separated by spaces and surrounded by quotes"
 	@echo "k			K-mer sizes. List must be descending, separated by spaces and surrounded by quotes"
 	@echo "t			Number of threads [8]"
-	@echo "time		If True, will log the time for each step [False]"
+	@echo "time			If True, will log the time for each step [False]"
+	@echo ""
 	@echo "ntEdit options:"
 	@echo "X			Ratio of number of kmers in the k subset that should be missing in order to attempt fix (higher=stringent) [0.5]"
 	@echo "Y			Ratio of number of kmers in the k subset that should be present to accept an edit (higher=stringent) [0.5]"
@@ -79,6 +79,7 @@ help:
 	@echo "P			Maximum alternate paths to merge; use 'nolimit' for no limit [10]"
 	@echo ""
 	@echo "Notes:"
+	@echo " - Pass all parameter list values (reads, k) as space-separated values surrounded by quotation marks, e.g. k='80 65 50'"
 	@echo " - Ensure that all input files are in the current working directory, making soft-links if needed"
 	@echo " - K-mer lengths will be used in the order they are provided. Ensure that they are sorted in descending order (largest to smallest)"
 
@@ -87,11 +88,11 @@ nthits_bfs=$(patsubst %,sr_solid_k%.bf,$(k))
 abyss_bloom_bfs=$(patsubst %,k%.bloom.z,$(k))
 
 # Main targets
-run: sealer
+finish: ntedit_sealer
 nthits: $(nthits_bfs)
 abyss_bloom: $(abyss_bloom_bfs)
 ntedit: nthits $(seqs_basename).ntedit_edited.fa
-sealer: abyss_bloom $(seqs_basename).ntedit_edited.prepd.sealer_scaffold.fa
+ntedit_sealer: abyss_bloom $(seqs_basename).ntedit_edited.prepd.sealer_scaffold.fa
 
 # Create bloom filters
 # ntEdit BFs
@@ -102,6 +103,7 @@ sr_solid_k%.bf: $(reads)
 k%.bloom.z: $(reads)
 	$(log_time) abyss-bloom build -v -v -k$* -j$t -b$b -l2 -q15 - $(reads) | $(gzip) -c > $@
 
+# Run ntEdit iteratively
 $(seqs_basename).ntedit_edited.fa: $(nthits_bfs)
 	$(log_time) $(protocol)/bin/run_ntedit.sh $(seqs_basename) "$(nthits_bfs)" "$(k)" $X $Y $t $@
 
