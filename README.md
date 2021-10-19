@@ -43,7 +43,7 @@ ntedit-sealer finish seqs=draft-assembly.fa reads='reads_1.fq.gz reads_2.fq.gz' 
 The corrected, finished assembly can be found with the suffix `.ntedit_edited.prepd.sealer_scaffold.fa`.
 
 ## Help Page
-```bash
+```
 ntEdit+Sealer assembly finishing protocol
 
 Usage: ntedit-sealer finish [OPTION=VALUE]
