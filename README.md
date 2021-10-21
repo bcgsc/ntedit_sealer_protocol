@@ -1,6 +1,6 @@
 # ntEdit+Sealer Assembly Finishing Protocol
 
-An automated protocol for finishing long-read genome assemblies using short reads. [ntEdit](https://github.com/bcgsc/ntEdit) polishes the draft assembly and flags erroneous regions, then [Sealer](https://github.com/bcgsc/abyss/tree/master/Sealer) fills assembly gaps and erroenous sequence regions flagged by ntEdit. The protocol is implemented as a Makefile pipeline.
+An automated protocol for finishing long-read genome assemblies using short reads. [ntEdit](https://github.com/bcgsc/ntEdit) polishes the draft assembly and flags erroneous regions, then [Sealer](https://github.com/bcgsc/abyss/tree/master/Sealer) fills assembly gaps and erroneous sequence regions flagged by ntEdit. The protocol is implemented as a Makefile pipeline.
 
 ## Dependencies
 
