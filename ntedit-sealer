@@ -104,8 +104,13 @@ k%.bloom.z: $(reads)
 	$(log_time) abyss-bloom build -v -v -k$* -j$t -b$b -l2 -q15 - $(reads) | $(gzip) -c > $@
 
 # Run ntEdit iteratively
+num_k=$(words $(k))
+fastas=$(seqs) $(patsubst %,$(seqs_basename).k%.fa,$(filter-out $(lastword $(k)), $(k)))
+call_ntedit=$(log_time) ntedit -f $(1) -r $(2) -d5 -i5 -m1 -X$X -Y$Y -b sr_ntedit.k$(3) \
+
 $(seqs_basename).ntedit_edited.fa: $(nthits_bfs)
-	$(log_time) $(protocol)/bin/run_ntedit.sh $(seqs_basename) "$(nthits_bfs)" "$(k)" $X $Y $t $@
+	$(foreach index,$(shell seq 1 $(num_k)),$(call call_ntedit,$(word $(index),$(fastas)),$(word $(index),$(nthits_bfs)),$(word $(index),$(k))))
+	ln -sf $(lastword $(fastas)) $@
 
 # Consolidate soft masks
 %.prepd.fa: %.fa
