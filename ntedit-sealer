@@ -109,7 +109,7 @@ $(seqs_basename).ntedit_edited.fa: $(nthits_bfs)
 
 # Consolidate soft masks
 %.prepd.fa: %.fa
-	$(log_time) python3 $(protocol)/bin/mask_short_sequences.py -k$(lastword $(k)) $< > $@
+	$(log_time) python3 $(protocol)/bin/mask_short_sequences.py -s -k$(lastword $(k)) $< > $@
 
 # Run Sealer
 %.sealer_scaffold.fa: %.fa $(abyss_bloom_bfs)
