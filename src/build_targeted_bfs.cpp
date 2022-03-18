@@ -114,7 +114,7 @@ std::vector<size_t> get_random_indices(const size_t total_size, const size_t cou
   btllib::check_error(count > total_size, "get_random_indices: count cannot be larger than total_size.");
 
   static std::random_device dev;
-  static std::mt19937 rng(123456); //dev());
+  static std::mt19937 rng(dev());
 
   std::vector<size_t> all_indices(total_size);
   std::iota(all_indices.begin(), all_indices.end(), 0);
@@ -150,7 +150,6 @@ void serve(const std::string& contigs_filepath,
            const unsigned hash_num,
            const std::vector<unsigned>& ks) {
   btllib::check_error(kmer_threshold == 0, "k-mer threshold must be >0.");
-  const auto kmer_threshold_minus_one = kmer_threshold - 1;
   btllib::check_error(mkfifo(input_pipepath.c_str(), S_IRUSR | S_IWUSR) != 0, "mkfifo failed.");
   btllib::check_error(mkfifo(confirm_pipepath.c_str(), S_IRUSR | S_IWUSR) != 0, "mkfifo failed.");
 
@@ -194,12 +193,9 @@ void serve(const std::string& contigs_filepath,
 #pragma omp parallel
 #pragma omp single
       for (const auto read_id_idx : random_indices) {
-        const auto t1 = std::chrono::system_clock::now();
         const auto read_id = contig_reads_vector[read_id_idx];
-        const auto t2 = std::chrono::system_clock::now();
         const auto seq = get_seq_with_index(read_id, reads_file, reads_index);
         const std::string seqcopy(seq);
-        const auto t3 = std::chrono::system_clock::now();
 #pragma omp task firstprivate(seqcopy)
         for (size_t i = 0; i < ks.size(); i++)
         {
@@ -207,14 +203,11 @@ void serve(const std::string& contigs_filepath,
           const auto& bf = bfs[i];
           btllib::NtHash nthash(seqcopy, hash_num, ks[i]);
           while (nthash.roll()) {
-            if (cbf->contains(nthash.hashes()) >= kmer_threshold_minus_one) {
+            if (cbf->insert_thresh_contains(nthash.hashes(), kmer_threshold) >= kmer_threshold) {
               bf->insert(nthash.hashes());
-            } else {
-              cbf->insert(nthash.hashes());
             }
           }
         }
-        const auto t4 = std::chrono::system_clock::now();
       }
     }
     if (contig_id == END_SYMBOL) { break; }

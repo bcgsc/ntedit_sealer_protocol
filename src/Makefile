@@ -7,9 +7,9 @@ LDFLAGS=-L $(btllib_path)/lib -lbtllib
 %: %.cpp
 	$(CXX) $< -o $@ $(CXXFLAGS) $(LDFLAGS)
 
-bins: build_index get_contig_reads build_targeted_bfs
+bins: build_index build_targeted_bfs
 
 .PHONY: clean
 
 clean:
-	$(RM) build_index get_contig_reads build_targeted_bfs
+	$(RM) build_index build_targeted_bfs
