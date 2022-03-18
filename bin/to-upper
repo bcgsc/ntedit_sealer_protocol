@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+
+import argparse
+import sys
+from os.path import join, dirname, realpath
+sys.path.append(join(realpath(dirname(__file__)), '../btllib/python'))
+import btllib
+
+parser = argparse.ArgumentParser()
+parser.add_argument('seqs')
+parser.add_argument('output')
+args = parser.parse_args()
+
+with btllib.SeqReader(args.seqs, btllib.SeqReaderFlag.LONG_MODE) as reader:
+  writer = btllib.SeqWriter(args.output)
+  for record in reader:
+    writer.write(record.id, record.comment, record.seq.upper())
+  writer.close()

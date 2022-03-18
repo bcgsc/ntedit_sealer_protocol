@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+import uuid
+import base64
+import argparse
+from os.path import join, dirname, realpath, abspath, isfile, exists, splitext, basename
+sys.path.append(join(realpath(dirname(__file__)), '../btllib/python'))
+import btllib
+import subprocess as sp
+import threading
+import time
+
+def get_cli_args():
+  parser = argparse.ArgumentParser()
+  parser.add_argument('to_polish')
+  parser.add_argument('K', default='32 28 24 20')
+  parser.add_argument('prefix')
+  parser.add_argument('confirm_pipepath')
+  parser.add_argument('-b', '--bfs-dir', default="/dev/shm/targeted_bfs")
+  parser.add_argument('-t', '--threads', type=int, default=1)
+
+  args = parser.parse_args()
+  args.to_polish = abspath(args.to_polish)
+
+  return args
+
+def get_random_name():
+  return base64.urlsafe_b64encode(uuid.uuid4().bytes).rstrip(b'=').replace(b'-', b'').decode('ascii')
+
+def start_watchdog():
+  def watch_parent():
+    if os.getppid() == 1: sys.exit(-1)
+    time.sleep(1)
+  threading.Thread(target=watch_parent, daemon=True).start()
+
+if __name__ == "__main__":
+  args = get_cli_args()
+
+  start_watchdog()
+
+  bfs = ""
+  for k in args.K.split():
+    bfs += join(args.bfs_dir, f"{args.prefix}targeted_k{k}.bf") + " "
+
+  polished_contig = f"{splitext(args.to_polish)[0]}.ntedited.prepd.sealer_scaffold.upper.fa"
+
+  sealer_protocol_process = sp.run([ f""" \
+    ntedit-sealer \
+    seqs={args.to_polish} \
+    bfs='{bfs}' \
+    K='{args.K}' \
+    t={args.threads} \
+    {polished_contig} \
+  """ ], shell=True, text=True, capture_output=True, check=True)
+
+  to_print = ""
+  print_next_lines = 0
+  for line in sealer_protocol_process.stderr.split('\n'):
+    line = line.strip()
+    if print_next_lines > 0:
+      to_print += f"{line}"
+      print_next_lines -= 1
+      if print_next_lines == 0:
+        to_print += ')\n'
+      else:
+        to_print += ', '
+    elif "No start/goal kmer" in line:
+      print_next_lines = 11
+      to_print += f"({line}, "
+    elif "Gaps closed = " in line:
+      print_next_lines = 1
+      to_print += f"{line} ("
+  btllib.log_info(to_print)
+
+  with open(args.confirm_pipepath, 'w') as f: f.write(str(1))
