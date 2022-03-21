@@ -21,7 +21,7 @@
 #include <unistd.h>
 #include <omp.h>
 
-static const double MAX_READS_PER_CONTIG_10KBP = 120.0;
+static const double MAX_READS_PER_CONTIG_10KBP = 100.0;
 static const std::string INPIPE = "input";
 static const std::string CONFIRMPIPE = "confirm";
 static const std::string SEPARATOR = "_";
@@ -42,7 +42,7 @@ namespace opt {
   std::vector<unsigned> ks = { 32, 28, 24, 20 };
   bool ks_set = false;
   unsigned hash_num = 4;
-  unsigned threads = 1;
+  unsigned threads = 100;
 }
 
 using SeqId = std::string;
@@ -68,9 +68,14 @@ void load_contigs_reads(ReadsMapping& contigs_reads, const std::string& filepath
       case 0: read_id = std::move(token); break;
       case 1: contig_id = std::move(token); break;
       case 2: {
+        auto it = contigs_reads.find(contig_id);
+        if (it == contigs_reads.end()) {
+          const auto emplacement = contigs_reads.emplace(contig_id, std::vector<SeqId>());
+          it = emplacement.first;
+        }
         const auto minimizers = std::stoul(token);
         if (minimizers >= mx_threshold) {
-          contigs_reads[contig_id].push_back(read_id);
+          it->second.push_back(read_id);
         }
         break;
       }
@@ -124,11 +129,15 @@ std::vector<size_t> get_random_indices(const size_t total_size, const size_t cou
   return indices;
 }
 
-char* get_seq_with_index(const std::string& id, std::ifstream& seqfile, const Index& index) {
+char* get_seq_with_index(std::ifstream& seqfile, const SeqCoordinates& coords) {
   static const size_t max_seqlen = 300'000UL;
-  static char* seq = new char[max_seqlen];
-  
-  const auto& coords = index.at(id);
+  static thread_local char* seq;
+  static thread_local bool seq_initialized = false;
+  if (!seq_initialized) {
+    seq = new char[max_seqlen];
+    seq_initialized = true;
+  }
+
   btllib::check_error(coords.seq_len >= max_seqlen, "Read size over max.");
   seqfile.seekg(coords.seq_start);
   seqfile.read(seq, coords.seq_len);
@@ -160,7 +169,9 @@ void serve(const std::string& contigs_filepath,
   std::vector<std::string> bf_paths;
 
   std::ifstream contigs_file(contigs_filepath);
-  std::ifstream reads_file(reads_filepath);
+  //std::ifstream reads_file(reads_filepath);
+  thread_local static std::ifstream *reads_file;
+  thread_local static bool reads_file_initialized = false;
 
   std::string contig_set_prefix;
   std::string contig_id;
@@ -174,6 +185,7 @@ void serve(const std::string& contigs_filepath,
       bfs.push_back(std::make_unique<btllib::KmerBloomFilter>(bf_bytes, hash_num, k));
     }
     std::ifstream inputstream(input_pipepath);
+
     if (!(inputstream >> contig_set_prefix)) { break; }
     if (contig_set_prefix == END_SYMBOL) { break; }
     bf_paths.clear();
@@ -183,7 +195,8 @@ void serve(const std::string& contigs_filepath,
     while (inputstream >> contig_id) {
       if (contig_id == END_SYMBOL) { break; }
 
-      const auto contig_seq = get_seq_with_index(contig_id, contigs_file, contigs_index);
+      const auto& coords = contigs_index.at(contig_id);
+      const auto contig_seq = get_seq_with_index(contigs_file, coords);
       const auto& contig_reads_vector = contigs_reads.at(contig_id);
       const auto contig_reads_num = contig_reads_vector.size();
       const auto contig_reads_num_adjusted = std::min(contig_reads_num, decltype(contig_reads_num)(double(std::strlen(contig_seq)) / 10'000.0 * MAX_READS_PER_CONTIG_10KBP));
@@ -192,16 +205,20 @@ void serve(const std::string& contigs_filepath,
 
 #pragma omp parallel
 #pragma omp single
-      for (const auto read_id_idx : random_indices) {
+      for (const auto read_id_idx : random_indices)
+#pragma omp task firstprivate(read_id_idx) shared(bfs, cbfs, contig_reads_vector, reads_index)
+      {
+        if (!reads_file_initialized) {
+          reads_file = new std::ifstream(reads_filepath); reads_file_initialized = true;
+        }
         const auto read_id = contig_reads_vector[read_id_idx];
-        const auto seq = get_seq_with_index(read_id, reads_file, reads_index);
-        const std::string seqcopy(seq);
-#pragma omp task firstprivate(seqcopy)
+        const auto& coords = reads_index.at(read_id);
+        const auto seq = get_seq_with_index(*reads_file, coords);
         for (size_t i = 0; i < ks.size(); i++)
         {
           const auto& cbf = cbfs[i];
           const auto& bf = bfs[i];
-          btllib::NtHash nthash(seqcopy, hash_num, ks[i]);
+          btllib::NtHash nthash(seq, coords.seq_len, hash_num, ks[i]);
           while (nthash.roll()) {
             if (cbf->insert_thresh_contains(nthash.hashes(), kmer_threshold) >= kmer_threshold) {
               bf->insert(nthash.hashes());

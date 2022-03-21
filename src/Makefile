@@ -1,7 +1,7 @@
 btllib_path=$(shell dirname $(realpath $(MAKEFILE_LIST)))/../btllib
 
 CXX=g++
-CXXFLAGS=-I $(btllib_path)/include -fopenmp -pthread -O3
+CXXFLAGS=-I $(btllib_path)/include -fopenmp -pthread -O3 -std=c++17
 LDFLAGS=-L $(btllib_path)/lib -lbtllib
 
 %: %.cpp

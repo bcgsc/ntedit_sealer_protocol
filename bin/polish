@@ -27,7 +27,7 @@ def get_cli_args():
   parser.add_argument('--kmer-threshold', default=8)
   parser.add_argument('--mx-threshold', default=20)
   parser.add_argument('-b', '--b1size', default=1, help="Batch 1 size.")
-  parser.add_argument('-B', '--b2size', default=1, help="Batch 2 size.")
+  parser.add_argument('-B', '--b2size', default=100, help="Batch 2 size.")
 
   args = parser.parse_args()
   args.to_polish = abspath(args.to_polish)
