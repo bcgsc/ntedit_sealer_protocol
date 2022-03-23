@@ -1,9 +1,10 @@
+#include "utils.hpp"
+
 #include "btllib/status.hpp"
 #include "btllib/seq_writer.hpp"
 #include "btllib/counting_bloom_filter.hpp"
+#include "btllib/util.hpp"
 
-#include <algorithm>
-#include <random>
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
@@ -15,6 +16,7 @@
 #include <memory>
 #include <thread>
 #include <chrono>
+#include <utility>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -34,8 +36,8 @@ namespace opt {
   std::string contigs_reads_filepath;
   std::string reads_filepath;
   std::string reads_index_filepath;
-  size_t cbf_bytes = 4ULL * 1024ULL * 1024ULL;
-  size_t bf_bytes = 1ULL * 1024ULL * 1024ULL;
+  size_t cbf_bytes = 10ULL * 1024ULL * 1024ULL;
+  size_t bf_bytes = 512ULL * 1024ULL;
   unsigned kmer_threshold = 5;
   unsigned mx_threshold = 5;
   std::string prefix = "targeted";
@@ -45,104 +47,65 @@ namespace opt {
   unsigned threads = 100;
 }
 
-using SeqId = std::string;
+void
+serve_set(const std::string& set_prefix,
+          const std::string& set_input_pipepath,
+          const std::string& set_confirm_pipepath,
+          const std::vector<std::string>& bf_paths_base,
+          const std::vector<unsigned>& ks,
+          const size_t cbf_bytes,
+          const size_t bf_bytes,
+          const unsigned kmer_threshold,
+          const unsigned hash_num,
+          const std::string& contigs_filepath,
+          const Index& contigs_index,
+          const ReadsMapping& contigs_reads,
+          const std::string& reads_filepath,
+          const Index& reads_index)
+{
+  std::vector<std::unique_ptr<btllib::KmerCountingBloomFilter8>> cbfs;
+  std::vector<std::unique_ptr<btllib::KmerBloomFilter>> bfs;
 
-struct SeqCoordinates {
-  size_t seq_start, seq_len;
+  for (const auto k : ks) {
+    cbfs.push_back(std::make_unique<btllib::KmerCountingBloomFilter8>(cbf_bytes, hash_num, k));
+    bfs.push_back(std::make_unique<btllib::KmerBloomFilter>(bf_bytes, hash_num, k));
+  }
 
-  SeqCoordinates(const size_t seq_start, const size_t seq_len)
-    : seq_start(seq_start)
-    , seq_len(seq_len) {}
-};
+  std::vector<std::string> bf_paths;
+  for (const auto& bf_path_suffix : bf_paths_base) {
+    bf_paths.push_back(set_prefix + SEPARATOR + bf_path_suffix);
+  }
 
-using ReadsMapping = std::unordered_map<SeqId, std::vector<SeqId>>;
-using Index = std::unordered_map<SeqId, SeqCoordinates>;
+  std::string contig_id;
+  std::ifstream inputstream(set_input_pipepath);
+  while (inputstream >> contig_id && contig_id != END_SYMBOL) {
+    const auto [contig_seq, contig_len] = get_seq_with_index<1>(contig_id, contigs_index, contigs_filepath);
 
-void load_contigs_reads(ReadsMapping& contigs_reads, const std::string& filepath, const unsigned mx_threshold) {
-  btllib::log_info(std::string("Loading contig reads from ") + filepath + "... ");
-  std::ifstream ifs(filepath);
-  std::string token, read_id, contig_id;
-  unsigned long i = 0;
-  while (ifs >> token) {
-    switch (i % 3) {
-      case 0: read_id = std::move(token); break;
-      case 1: contig_id = std::move(token); break;
-      case 2: {
-        auto it = contigs_reads.find(contig_id);
-        if (it == contigs_reads.end()) {
-          const auto emplacement = contigs_reads.emplace(contig_id, std::vector<SeqId>());
-          it = emplacement.first;
-        }
-        const auto minimizers = std::stoul(token);
-        if (minimizers >= mx_threshold) {
-          it->second.push_back(read_id);
-        }
-        break;
-      }
-      default: {
-        btllib::log_error("Invalid switch branch.");
-        std::exit(EXIT_FAILURE);
-      }
+    const auto& contig_reads_vector = contigs_reads.at(contig_id);
+    const auto contig_reads_num = contig_reads_vector.size();
+    const auto contig_reads_num_adjusted = std::min(contig_reads_num, decltype(contig_reads_num)(double(std::strlen(contig_seq)) / 10'000.0 * MAX_READS_PER_CONTIG_10KBP));
+
+    const auto random_indices = get_random_indices(contig_reads_num, contig_reads_num_adjusted);
+
+    for (const auto read_id_idx : random_indices)
+#pragma omp task firstprivate(read_id_idx) shared(bfs, cbfs, contig_reads_vector, reads_index, reads_filepath, ks)
+    {
+      const auto read_id = contig_reads_vector[read_id_idx];
+      const auto [seq, seq_len] = get_seq_with_index<2>(read_id, reads_index, reads_filepath);
+      fill_bfs(seq, seq_len, hash_num, ks, kmer_threshold, cbfs, bfs);
     }
-    i++;
-  }
-  btllib::log_info("Done!");
-}
-
-void load_index(Index& index, const std::string& filepath) {
-  btllib::log_info(std::string("Loading index from ") + filepath + "... ");
-  std::ifstream ifs(filepath);
-  std::string token, id;
-  unsigned long id_start, id_end, seq_end;
-  unsigned long i = 0;
-  while (ifs >> token) {
-    switch (i % 4) {
-      case 0: id = std::move(token); break;
-      case 1: id_start = std::stoul(token); break;
-      case 2: id_end = std::stoul(token); break;
-      case 3: {
-        seq_end = std::stoul(token);
-        index.emplace(std::piecewise_construct, std::make_tuple(id), std::make_tuple(id_end + 1, seq_end - id_end - 1));
-        break;
-      }
-      default: {
-        btllib::log_error("Invalid switch branch.");
-        std::exit(EXIT_FAILURE);
-      }
-    }
-    i++;
-  }
-  btllib::log_info("Done!");
-}
-
-std::vector<size_t> get_random_indices(const size_t total_size, const size_t count) {
-  btllib::check_error(count > total_size, "get_random_indices: count cannot be larger than total_size.");
-
-  static std::random_device dev;
-  static std::mt19937 rng(dev());
-
-  std::vector<size_t> all_indices(total_size);
-  std::iota(all_indices.begin(), all_indices.end(), 0);
-  std::shuffle(all_indices.begin(), all_indices.end(), rng);
-  decltype(all_indices) indices(all_indices.begin(), all_indices.begin() + count);
-
-  return indices;
-}
-
-char* get_seq_with_index(std::ifstream& seqfile, const SeqCoordinates& coords) {
-  static const size_t max_seqlen = 300'000UL;
-  static thread_local char* seq;
-  static thread_local bool seq_initialized = false;
-  if (!seq_initialized) {
-    seq = new char[max_seqlen];
-    seq_initialized = true;
+#pragma omp taskwait
   }
 
-  btllib::check_error(coords.seq_len >= max_seqlen, "Read size over max.");
-  seqfile.seekg(coords.seq_start);
-  seqfile.read(seq, coords.seq_len);
-  seq[coords.seq_len] = '\0';
-  return seq;
+  for (size_t i = 0; i < bfs.size(); i++) {
+    bfs[i]->save(bf_paths[i]);
+  }
+
+  std::ofstream outputstream(set_confirm_pipepath);
+  outputstream << "1" << std::endl;
+
+  std::remove(set_input_pipepath.c_str());
+  std::remove(set_confirm_pipepath.c_str());
 }
 
 void serve(const std::string& contigs_filepath,
@@ -166,71 +129,32 @@ void serve(const std::string& contigs_filepath,
   for (const auto k : ks) {
     bf_paths_base.push_back(std::string(bf_prefix) + "k" + std::to_string(k) + BF_EXTENSION);
   }
-  std::vector<std::string> bf_paths;
 
-  std::ifstream contigs_file(contigs_filepath);
-  //std::ifstream reads_file(reads_filepath);
-  thread_local static std::ifstream *reads_file;
-  thread_local static bool reads_file_initialized = false;
+  const auto input_pipepath_dirname = btllib::get_dirname(input_pipepath);
+  const auto input_pipepath_basename = btllib::get_basename(input_pipepath);
+  const auto confirm_pipepath_dirname = btllib::get_dirname(confirm_pipepath);
+  const auto confirm_pipepath_basename = btllib::get_basename(confirm_pipepath);
 
-  std::string contig_set_prefix;
-  std::string contig_id;
+  std::string set_prefix;
 
-  btllib::log_info(std::string("Accepting contig IDs at ") + input_pipepath);
-  while (true) {
-    std::vector<std::unique_ptr<btllib::KmerCountingBloomFilter8>> cbfs;
-    std::vector<std::unique_ptr<btllib::KmerBloomFilter>> bfs;
-    for (const auto k : ks) {
-      cbfs.push_back(std::make_unique<btllib::KmerCountingBloomFilter8>(cbf_bytes, hash_num, k));
-      bfs.push_back(std::make_unique<btllib::KmerBloomFilter>(bf_bytes, hash_num, k));
-    }
-    std::ifstream inputstream(input_pipepath);
-
-    if (!(inputstream >> contig_set_prefix)) { break; }
-    if (contig_set_prefix == END_SYMBOL) { break; }
-    bf_paths.clear();
-    for (const auto& bf_path_suffix : bf_paths_base) {
-      bf_paths.push_back(contig_set_prefix + bf_path_suffix);
-    }
-    while (inputstream >> contig_id) {
-      if (contig_id == END_SYMBOL) { break; }
-
-      const auto& coords = contigs_index.at(contig_id);
-      const auto contig_seq = get_seq_with_index(contigs_file, coords);
-      const auto& contig_reads_vector = contigs_reads.at(contig_id);
-      const auto contig_reads_num = contig_reads_vector.size();
-      const auto contig_reads_num_adjusted = std::min(contig_reads_num, decltype(contig_reads_num)(double(std::strlen(contig_seq)) / 10'000.0 * MAX_READS_PER_CONTIG_10KBP));
-
-      const auto random_indices = get_random_indices(contig_reads_num, contig_reads_num_adjusted);
-
+  btllib::log_info(std::string("Accepting contig requests at ") + input_pipepath);
 #pragma omp parallel
 #pragma omp single
-      for (const auto read_id_idx : random_indices)
-#pragma omp task firstprivate(read_id_idx) shared(bfs, cbfs, contig_reads_vector, reads_index)
-      {
-        if (!reads_file_initialized) {
-          reads_file = new std::ifstream(reads_filepath); reads_file_initialized = true;
-        }
-        const auto read_id = contig_reads_vector[read_id_idx];
-        const auto& coords = reads_index.at(read_id);
-        const auto seq = get_seq_with_index(*reads_file, coords);
-        for (size_t i = 0; i < ks.size(); i++)
-        {
-          const auto& cbf = cbfs[i];
-          const auto& bf = bfs[i];
-          btllib::NtHash nthash(seq, coords.seq_len, hash_num, ks[i]);
-          while (nthash.roll()) {
-            if (cbf->insert_thresh_contains(nthash.hashes(), kmer_threshold) >= kmer_threshold) {
-              bf->insert(nthash.hashes());
-            }
-          }
-        }
-      }
-    }
-    if (contig_id == END_SYMBOL) { break; }
-    for (size_t i = 0; i < bfs.size(); i++) {
-      bfs[i]->save(bf_paths[i]);
-    }
+  while (true) {
+    std::ifstream inputstream(input_pipepath);
+
+    if (!(inputstream >> set_prefix)) { break; }
+    if (set_prefix == END_SYMBOL) { break; }
+
+    const auto set_input_pipepath = input_pipepath_dirname + '/' + set_prefix + SEPARATOR + input_pipepath_basename;
+    const auto set_confirm_pipepath = confirm_pipepath_dirname + '/' + set_prefix + SEPARATOR + confirm_pipepath_basename;
+
+    btllib::check_error(mkfifo(set_input_pipepath.c_str(), S_IRUSR | S_IWUSR) != 0, "mkfifo failed.");
+    btllib::check_error(mkfifo(set_confirm_pipepath.c_str(), S_IRUSR | S_IWUSR) != 0, "mkfifo failed.");
+
+#pragma omp task firstprivate(set_prefix, set_input_pipepath, set_confirm_pipepath) shared(bf_paths_base, ks, contigs_filepath, contigs_index, contigs_reads, reads_filepath, reads_index)
+    serve_set(set_prefix, set_input_pipepath, set_confirm_pipepath, bf_paths_base, ks, cbf_bytes, bf_bytes, kmer_threshold, hash_num, contigs_filepath, contigs_index, contigs_reads, reads_filepath, reads_index);
+
     std::ofstream outputstream(confirm_pipepath);
     outputstream << "1" << std::endl;
   }
@@ -238,15 +162,6 @@ void serve(const std::string& contigs_filepath,
 
   std::remove(input_pipepath.c_str());
   std::remove(confirm_pipepath.c_str());
-}
-
-void start_watchdog() {
-  (new std::thread([] () {
-    if (getppid() == 1) {
-      std::exit(-1);
-    }
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-  }))->detach();
 }
 
 int main(int argc, char** argv) {
@@ -268,7 +183,7 @@ int main(int argc, char** argv) {
   ReadsMapping contigs_reads;
   Index reads_index, contigs_index;
   
-  load_contigs_reads(contigs_reads, opt::contigs_reads_filepath, opt::mx_threshold);
+  load_reads_mapping(contigs_reads, opt::contigs_reads_filepath, opt::mx_threshold);
   load_index(contigs_index, opt::contigs_index_filepath);
   load_index(reads_index, opt::reads_index_filepath);
 

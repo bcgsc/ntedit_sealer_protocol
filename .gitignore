@@ -1,2 +1,9 @@
 src/build_index
 src/build_targeted_bfs
+btllib/lib
+btllib/bin
+btllib/python
+btllib/venv
+btllib/external/sdsl-lite/build
+btllib/external/sdsl-lite/installdir
+btllib/external/sdsl-lite/Make.helper

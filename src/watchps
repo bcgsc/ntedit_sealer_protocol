@@ -1,3 +1,0 @@
-#!/bin/bash
-
-ps aux | grep vnikolic | awk '{ print $3 }' | paste -sd+ | bc

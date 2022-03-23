@@ -4,8 +4,8 @@ CXX=g++
 CXXFLAGS=-I $(btllib_path)/include -fopenmp -pthread -O3 -std=c++17
 LDFLAGS=-L $(btllib_path)/lib -lbtllib
 
-%: %.cpp
-	$(CXX) $< -o $@ $(CXXFLAGS) $(LDFLAGS)
+%: %.cpp utils.cpp
+	$(CXX) $^ -o $@ $(CXXFLAGS) $(LDFLAGS)
 
 bins: build_index build_targeted_bfs
 

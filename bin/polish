@@ -17,6 +17,7 @@ import signal
 import atexit
 
 SHARED_MEMORY_DIR = '/dev/shm'
+RECORD_IDS_FILENAME = 'record_ids'
 
 def get_cli_args():
   parser = argparse.ArgumentParser()
@@ -24,8 +25,8 @@ def get_cli_args():
   parser.add_argument('reads')
   parser.add_argument('output')
   parser.add_argument('-K', default='32 28 24 20')
-  parser.add_argument('--kmer-threshold', default=8)
-  parser.add_argument('--mx-threshold', default=20)
+  parser.add_argument('--kmer-threshold', default=10)
+  parser.add_argument('--mx-threshold', default=23)
   parser.add_argument('-b', '--b1size', default=1, help="Batch 1 size.")
   parser.add_argument('-B', '--b2size', default=100, help="Batch 2 size.")
 
@@ -83,7 +84,7 @@ def run_bf_builder(bfs_dir, to_polish, to_polish_index, to_polish_read_mapping, 
 
   return process
 
-def get_next_batch_of_reads(reader, record_ids, output_filepath, batch_size):
+def get_next_batch_of_contigs(reader, record_ids, output_filepath, batch_size):
   with btllib.SeqWriter(output_filepath) as tmpwriter:
     reader_done = True
     while record := reader.read():
@@ -101,13 +102,14 @@ def make_tmp_dir(workspace, paths):
   return tmp_dir
 
 def polish_batch(tmp_dir, input_pipepath, confirm_pipepath, to_polish, batch_idx, record_ids, batch_confirmpipe):
-  with open(input_pipepath, 'w') as f:
-    print(batch_idx, file=f)
-    for id in record_ids:
-      print(id, file=f)
+  with open(input_pipepath, 'w') as f: print(batch_idx, file=f)
   with open(confirm_pipepath)    as f: f.read()
 
   os.mkfifo(join(tmp_dir, batch_confirmpipe))
+
+  with open(join(tmp_dir, RECORD_IDS_FILENAME), 'w') as f:
+    for id in record_ids:
+      print(id, file=f)
 
   sp.Popen([
     "polish_batch",
@@ -179,7 +181,7 @@ def polish_seqs(reader, writer, to_polish, reads, K, kmer_threshold, mx_threshol
 
       tmp_dir = make_tmp_dir(polishing_workspace, batch2_paths)
 
-      reader_done = get_next_batch_of_reads(reader, record_ids, join(tmp_dir, contig_tmppath), batch1_size)
+      reader_done = get_next_batch_of_contigs(reader, record_ids, join(tmp_dir, contig_tmppath), batch1_size)
 
       if len(record_ids) > 0:
         polish_batch(tmp_dir, input_pipepath, confirm_pipepath, contig_tmppath, batch2_idx, record_ids, batch2_confirmpipe)
@@ -193,8 +195,7 @@ def polish_seqs(reader, writer, to_polish, reads, K, kmer_threshold, mx_threshol
       shutil.rmtree(tmp_dir, ignore_errors=True)
 
   btllib.log_info("Done polishing batches, ending helper process...")
-  with open(input_pipepath, 'w') as f:
-    print("x", file=f)
+  with open(input_pipepath, 'w') as f: print("x", file=f)
   build_targeted_bfs_process.wait()
   shutil.rmtree(bfs_dir, ignore_errors=True)
   btllib.log_info("Polisher done")
