@@ -24,7 +24,8 @@ def get_cli_args():
   parser.add_argument('prefix')
   parser.add_argument('confirm_pipepath')
   parser.add_argument('-b', '--bfs-dir', default="/dev/shm/targeted_bfs")
-  parser.add_argument('-t', '--threads', type=int, default=1)
+  parser.add_argument('-t', '--threads', type=int, default=5)
+  parser.add_argument('-v', '--verbose', action='store_true')
 
   args = parser.parse_args()
   args.to_polish = abspath(args.to_polish)
@@ -69,23 +70,24 @@ if __name__ == "__main__":
   for k in args.K.split():
     os.remove(join(args.bfs_dir, f"{args.prefix}_targeted_k{k}.bf"))
 
-  to_print = ""
-  print_next_lines = 0
-  for line in sealer_protocol_process.stderr.split('\n'):
-    line = line.strip()
-    if print_next_lines > 0:
-      to_print += f"{line}"
-      print_next_lines -= 1
-      if print_next_lines == 0:
-        to_print += ')\n'
-      else:
-        to_print += ', '
-    elif "No start/goal kmer" in line:
-      print_next_lines = 11
-      to_print += f"({line}, "
-    elif "Gaps closed = " in line:
-      print_next_lines = 1
-      to_print += f"{line} ("
-  btllib.log_info(to_print)
+  if args.verbose:
+    to_print = ""
+    print_next_lines = 0
+    for line in sealer_protocol_process.stderr.split('\n'):
+      line = line.strip()
+      if print_next_lines > 0:
+        to_print += f"{line}"
+        print_next_lines -= 1
+        if print_next_lines == 0:
+          to_print += ')\n'
+        else:
+          to_print += ', '
+      elif "No start/goal kmer" in line:
+        print_next_lines = 11
+        to_print += f"({line}, "
+      elif "Gaps closed = " in line:
+        print_next_lines = 1
+        to_print += f"{line} ("
+    btllib.log_info(to_print)
 
   with open(args.confirm_pipepath, 'w') as f: f.write(str(1))

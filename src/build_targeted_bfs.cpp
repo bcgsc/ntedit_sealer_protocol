@@ -44,7 +44,7 @@ namespace opt {
   std::vector<unsigned> ks = { 32, 28, 24, 20 };
   bool ks_set = false;
   unsigned hash_num = 4;
-  unsigned threads = 100;
+  unsigned threads = 48;
 }
 
 void
@@ -178,6 +178,7 @@ int main(int argc, char** argv) {
   opt::kmer_threshold = std::stoi(argv[arg++]);
   opt::mx_threshold = std::stoi(argv[arg++]);
 
+  omp_set_nested(1);
   omp_set_num_threads(opt::threads);
 
   ReadsMapping contigs_reads;
