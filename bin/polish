@@ -9,6 +9,7 @@ from os.path import join, dirname, realpath, abspath, isfile, isdir, exists, spl
 sys.path.append(join(realpath(dirname(__file__)), '../btllib/python'))
 import btllib
 from multiprocessing import Pool, Lock, Queue, Manager
+import threading
 import uuid
 import shutil
 import base64
@@ -45,6 +46,7 @@ def handle_sudden_exit(bfs_dir, batch2_paths):
     shutil.rmtree(bfs_dir, ignore_errors=True)
     for path in batch2_paths:
       shutil.rmtree(path, ignore_errors=True)
+    sys.exit(-1)
 
   signal.signal(signal.SIGPIPE, handler)
   signal.signal(signal.SIGSEGV, handler)
@@ -78,6 +80,13 @@ def run_bf_builder(bfs_dir, to_polish, to_polish_index, to_polish_read_mapping, 
     str(kmer_threshold),
     str(mx_threshold)
   ], cwd=bfs_dir)
+
+  def watch_process(process):
+    process.wait()
+    if process.returncode != 0:
+      print("build_targeted_bfs failed!")
+      os.kill(os.getpid(), signal.SIGTERM)
+  threading.Thread(target=watch_process, args=(process,), daemon=True).start()
 
   while not exists(input_pipepath): time.sleep(2)
   btllib.log_info("build_targeted_bfs is ready!")

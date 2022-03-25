@@ -81,7 +81,16 @@ serve_set(const std::string& set_prefix,
   while (inputstream >> contig_id && contig_id != END_SYMBOL) {
     const auto [contig_seq, contig_len] = get_seq_with_index<1>(contig_id, contigs_index, contigs_filepath);
 
-    const auto& contig_reads_vector = contigs_reads.at(contig_id);
+    const auto contigs_reads_it = contigs_reads.find(contig_id);
+    if (
+      (contigs_reads_it == contigs_reads.end()) ||
+      (contigs_reads_it->second.empty())
+        )
+    {
+      continue;
+    }
+
+    const auto& contig_reads_vector = contigs_reads_it->second;
     const auto contig_reads_num = contig_reads_vector.size();
     const auto contig_reads_num_adjusted = std::min(contig_reads_num, decltype(contig_reads_num)(double(std::strlen(contig_seq)) / 10'000.0 * MAX_READS_PER_CONTIG_10KBP));
 

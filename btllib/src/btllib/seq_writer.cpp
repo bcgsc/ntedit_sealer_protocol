@@ -1,6 +1,7 @@
 #include "btllib/seq_writer.hpp"
 #include "btllib/data_stream.hpp"
 #include "btllib/seq.hpp"
+#include "btllib/status.hpp"
 
 #include <cstdio>
 #include <mutex>
@@ -66,8 +67,9 @@ SeqWriter::write(const std::string& id,
 
   {
     std::unique_lock<std::mutex> lock(mutex);
-    check_error(fwrite(output.c_str(), 1, output.size(), sink) != output.size(),
-                "SeqWriter: fwrite failed.");
+    if (fwrite(output.c_str(), 1, output.size(), sink) != output.size()) {
+      log_error("SeqWriter: fwrite failed: " + get_strerror());
+    }
   }
 }
 
