@@ -1,7 +1,7 @@
 #include "utils.hpp"
 
 #include "btllib/status.hpp"
-#include "btllib/seq_writer.hpp"
+#include "btllib/bloom_filter.hpp"
 #include "btllib/counting_bloom_filter.hpp"
 #include "btllib/util.hpp"
 

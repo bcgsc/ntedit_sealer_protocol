@@ -8,7 +8,7 @@ import subprocess as sp
 from os.path import join, dirname, realpath, abspath, isfile, isdir, exists, splitext, basename, getsize
 sys.path.append(join(realpath(dirname(__file__)), '../btllib/python'))
 import btllib
-from multiprocessing import Pool, Lock, Queue, Manager
+from multiprocessing import Process, Pool, Lock, Queue, Manager
 import threading
 import uuid
 import shutil
@@ -67,9 +67,16 @@ def build_indexes_and_mappings(reads, to_polish, K, to_polish_index, to_polish_r
   """ ], shell=True, text=True, capture_output=True, check=True)
   btllib.log_info(p.stdout + p.stderr)
 
-def run_bf_builder(bfs_dir, to_polish, to_polish_index, to_polish_read_mapping, reads, reads_index, kmer_threshold, mx_threshold, input_pipepath):
-  os.mkdir(bfs_dir)
+def _watch_process(process):
+  process.wait()
+  if process.returncode != 0:
+    print(f"{process.args} failed!")
+    os.kill(os.getpid(), signal.SIGTERM)
 
+def watch_process(process):
+  threading.Thread(target=_watch_process, args=(process,), daemon=True).start()
+
+def run_bf_builder(bfs_dir, to_polish, to_polish_index, to_polish_read_mapping, reads, reads_index, kmer_threshold, mx_threshold, input_pipepath):
   process = sp.Popen([
     "build_targeted_bfs",
     to_polish,
@@ -80,13 +87,7 @@ def run_bf_builder(bfs_dir, to_polish, to_polish_index, to_polish_read_mapping, 
     str(kmer_threshold),
     str(mx_threshold)
   ], cwd=bfs_dir)
-
-  def watch_process(process):
-    process.wait()
-    if process.returncode != 0:
-      print("build_targeted_bfs failed!")
-      os.kill(os.getpid(), signal.SIGTERM)
-  threading.Thread(target=watch_process, args=(process,), daemon=True).start()
+  watch_process(process)
 
   while not exists(input_pipepath): time.sleep(2)
   btllib.log_info("build_targeted_bfs is ready!")
@@ -104,13 +105,12 @@ def get_next_batch_of_contigs(reader, record_ids, output_filepath, batch_size):
         break
     return reader_done
 
-def make_tmp_dir(workspace, paths):
-  tmp_dir = join(workspace, get_random_name())
-  paths.append(tmp_dir)
+def make_tmp_dir(workspace, suffix=""):
+  tmp_dir = join(workspace, get_random_name() + suffix)
   os.mkdir(tmp_dir)
   return tmp_dir
 
-def polish_batch(tmp_dir, input_pipepath, confirm_pipepath, to_polish, batch_idx, record_ids, batch_confirmpipe):
+def polish_batch(tmp_dir, input_pipepath, confirm_pipepath, to_polish, batch_idx, record_ids, batch_confirmpipe, bfs_dir):
   with open(input_pipepath, 'w') as f: print(batch_idx, file=f)
   with open(confirm_pipepath)    as f: f.read()
 
@@ -120,13 +120,15 @@ def polish_batch(tmp_dir, input_pipepath, confirm_pipepath, to_polish, batch_idx
     for id in record_ids:
       print(id, file=f)
 
-  sp.Popen([
+  process = sp.Popen([
     "polish_batch",
     to_polish,
     args.K,
     str(batch_idx),
-    batch_confirmpipe
+    batch_confirmpipe,
+    bfs_dir
   ], cwd=tmp_dir)
+  watch_process(process)
 
 def wait_on_batch(batch_confirm_pipepath):
   with open(batch_confirm_pipepath) as f: f.read()
@@ -149,7 +151,7 @@ def polish_seqs(reader, writer, to_polish, reads, K, kmer_threshold, mx_threshol
     btllib.log_warning(f"{SHARED_MEMORY_DIR} not present. Polishing might run slower.")
 
   # Where to build the Bloom filters
-  bfs_dir = join(polishing_workspace, "targeted_bfs")
+  bfs_dir = make_tmp_dir(polishing_workspace, "-targeted_bfs")
 
   # Pipes for communicating with the process building the Bloom filters
   input_pipepath = join(bfs_dir, "targeted_input")
@@ -188,12 +190,13 @@ def polish_seqs(reader, writer, to_polish, reads, K, kmer_threshold, mx_threshol
 
       record_ids = []
 
-      tmp_dir = make_tmp_dir(polishing_workspace, batch2_paths)
+      tmp_dir = make_tmp_dir(polishing_workspace)
+      batch2_paths.append(tmp_dir)
 
       reader_done = get_next_batch_of_contigs(reader, record_ids, join(tmp_dir, contig_tmppath), batch1_size)
 
       if len(record_ids) > 0:
-        polish_batch(tmp_dir, input_pipepath, confirm_pipepath, contig_tmppath, batch2_idx, record_ids, batch2_confirmpipe)
+        polish_batch(tmp_dir, input_pipepath, confirm_pipepath, contig_tmppath, batch2_idx, record_ids, batch2_confirmpipe, bfs_dir)
       else:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         batch2_paths.pop()
