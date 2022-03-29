@@ -8,7 +8,8 @@ import subprocess as sp
 from os.path import join, dirname, realpath, abspath, isfile, isdir, exists, splitext, basename, getsize
 sys.path.append(join(realpath(dirname(__file__)), '../btllib/python'))
 import btllib
-from multiprocessing import Process, Pool, Lock, Queue, Manager
+import multiprocessing
+from multiprocessing import Pool, Lock, Queue, Manager
 import threading
 import uuid
 import shutil
@@ -41,19 +42,18 @@ def get_cli_args():
 def get_random_name():
   return base64.urlsafe_b64encode(uuid.uuid4().bytes).rstrip(b'=').replace(b'-', b'').decode('ascii')
 
-def handle_sudden_exit(bfs_dir, batch2_paths):
-  def handler(signum, frame):
-    shutil.rmtree(bfs_dir, ignore_errors=True)
-    for path in batch2_paths:
-      shutil.rmtree(path, ignore_errors=True)
-    sys.exit(-1)
+def _watch_process(process):
+  process.wait()
+  if process.returncode != 0:
+    print(f"{process.args} failed!")
+    os.kill(os.getpid(), signal.SIGTERM)
 
-  signal.signal(signal.SIGPIPE, handler)
-  signal.signal(signal.SIGSEGV, handler)
-  signal.signal(signal.SIGTERM, handler)
-  signal.signal(signal.SIGINT, handler)
-  signal.signal(signal.SIGCHLD, lambda x, y: None)
-  atexit.register(lambda: handler(None, None))
+def watch_process(process):
+  threading.Thread(target=_watch_process, args=(process,), daemon=True).start()
+
+def handle_sudden_exit(polishing_workspace, prefix):
+  process = sp.Popen([ 'polish-cleanup', polishing_workspace, prefix ])
+  watch_process(process)
 
 def build_indexes_and_mappings(reads, to_polish, K, to_polish_index, to_polish_read_mapping, reads_index):
   p = sp.run([ f""" \
@@ -66,15 +66,6 @@ def build_indexes_and_mappings(reads, to_polish, K, to_polish_index, to_polish_r
     {reads_index} \
   """ ], shell=True, text=True, capture_output=True, check=True)
   btllib.log_info(p.stdout + p.stderr)
-
-def _watch_process(process):
-  process.wait()
-  if process.returncode != 0:
-    print(f"{process.args} failed!")
-    os.kill(os.getpid(), signal.SIGTERM)
-
-def watch_process(process):
-  threading.Thread(target=_watch_process, args=(process,), daemon=True).start()
 
 def run_bf_builder(bfs_dir, to_polish, to_polish_index, to_polish_read_mapping, reads, reads_index, kmer_threshold, mx_threshold, input_pipepath):
   process = sp.Popen([
@@ -105,8 +96,8 @@ def get_next_batch_of_contigs(reader, record_ids, output_filepath, batch_size):
         break
     return reader_done
 
-def make_tmp_dir(workspace, suffix=""):
-  tmp_dir = join(workspace, get_random_name() + suffix)
+def make_tmp_dir(workspace, prefix, suffix):
+  tmp_dir = join(workspace, f"{prefix}-{suffix}")
   os.mkdir(tmp_dir)
   return tmp_dir
 
@@ -121,7 +112,7 @@ def polish_batch(tmp_dir, input_pipepath, confirm_pipepath, to_polish, batch_idx
       print(id, file=f)
 
   process = sp.Popen([
-    "polish_batch",
+    "polish-batch",
     to_polish,
     args.K,
     str(batch_idx),
@@ -147,11 +138,13 @@ def polish_seqs(reader, writer, to_polish, reads, K, kmer_threshold, mx_threshol
   if isdir(SHARED_MEMORY_DIR):
     polishing_workspace = SHARED_MEMORY_DIR
   else:
-    polishing_workspace = ""
+    polishing_workspace = cwd
     btllib.log_warning(f"{SHARED_MEMORY_DIR} not present. Polishing might run slower.")
 
+  prefix = get_random_name()
+
   # Where to build the Bloom filters
-  bfs_dir = make_tmp_dir(polishing_workspace, "-targeted_bfs")
+  bfs_dir = make_tmp_dir(polishing_workspace, prefix, "targeted_bfs")
 
   # Pipes for communicating with the process building the Bloom filters
   input_pipepath = join(bfs_dir, "targeted_input")
@@ -174,7 +167,7 @@ def polish_seqs(reader, writer, to_polish, reads, K, kmer_threshold, mx_threshol
   batch2_confirmpipe = "confirmpipe"
 
   batch2_paths = []
-  handle_sudden_exit(bfs_dir, batch2_paths)
+  handle_sudden_exit(polishing_workspace, prefix)
 
   build_indexes_and_mappings(reads, to_polish, K, to_polish_index, to_polish_read_mapping, reads_index)
 
@@ -190,7 +183,7 @@ def polish_seqs(reader, writer, to_polish, reads, K, kmer_threshold, mx_threshol
 
       record_ids = []
 
-      tmp_dir = make_tmp_dir(polishing_workspace)
+      tmp_dir = make_tmp_dir(polishing_workspace, prefix, batch2_idx)
       batch2_paths.append(tmp_dir)
 
       reader_done = get_next_batch_of_contigs(reader, record_ids, join(tmp_dir, contig_tmppath), batch1_size)

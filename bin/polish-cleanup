@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+
+import shutil
+import os
+import time
+import signal
+import atexit
+import sys
+import argparse
+
+def cleanup(path, prefix):
+  time.sleep(3)
+  for f in os.listdir(path):
+    if f.startswith(prefix):
+      shutil.rmtree(os.path.join(path, f), ignore_errors=True)
+
+if __name__ == "__main__":
+  parser = argparse.ArgumentParser()
+  parser.add_argument('path')
+  parser.add_argument('prefix')
+  args = parser.parse_args()
+
+  def handler(signum, frame):
+    cleanup(args.path, args.prefix)
+    sys.exit(-1)
+
+  signal.signal(signal.SIGPIPE, handler)
+  signal.signal(signal.SIGSEGV, handler)
+  signal.signal(signal.SIGTERM, handler)
+  signal.signal(signal.SIGINT, handler)
+  atexit.register(lambda: cleanup(args.path, args.prefix))
+
+  while os.getppid() != 1: time.sleep(1)
+  cleanup(args.path, args.prefix)
