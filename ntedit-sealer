@@ -56,13 +56,13 @@ protocol=$(shell dirname $(realpath $(MAKEFILE_LIST)))
 .SECONDARY:
 
 help:
-	@echo "ntEdit+Sealer assembly finishing protocol"
+	@echo "ntEdit+Sealer assembly finishing protocol v1.0.0"
 	@echo ""
 	@echo "Usage: ntedit-sealer finish [OPTION=VALUE]"
 	@echo ""
 	@echo "General options:"
 	@echo "seqs			Draft assembly name [seqs]. File must have .fa extension"
-	@echo "reads			Read file(s). All files must have .fq.gz extension. If multiple read files, list must be separated by spaces and surrounded by quotes"
+	@echo "reads			Read file(s). All files must have .fq.gz extension. Must be separated by spaces and surrounded by quotes"
 	@echo "k			K-mer sizes. List must be descending, separated by spaces and surrounded by quotes"
 	@echo "t			Number of threads [8]"
 	@echo "time			If True, will log the time for each step [False]"
