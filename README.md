@@ -2,6 +2,8 @@
 
 An automated protocol for finishing long-read genome assemblies using short reads. [ntEdit](https://github.com/bcgsc/ntEdit) polishes the draft assembly and flags erroneous regions, then [Sealer](https://github.com/bcgsc/abyss/tree/master/Sealer) fills assembly gaps and erroneous sequence regions flagged by ntEdit. The protocol is implemented as a Makefile pipeline.
 
+![ntEdit+Sealer protocol flowchart](/ntEdit_Sealer_flowchart.jpg)
+
 ## Dependencies
 
 - GNU Make
@@ -44,27 +46,25 @@ The corrected, finished assembly can be found with the suffix `.ntedit_edited.pr
 
 ## Help Page
 ```
-ntEdit+Sealer assembly finishing protocol
-
 Usage: ntedit-sealer finish [OPTION=VALUE]
 
 General options:
-seqs                    Draft assembly name [seqs]. File must have .fa extension
-reads                   Read file(s). All files must have .fq.gz extension. If multiple read files, list must be separated by spaces and surrounded by quotes
-k                       K-mer sizes. List must be descending, separated by spaces and surrounded by quotes
-t                       Number of threads [8]
-time                    If True, will log the time for each step [False]
+seqs			Draft assembly name [seqs]. File must have .fa extension
+reads			Read file(s). All files must have .fq.gz extension. Must be separated by spaces and surrounded by quotes
+k			K-mer sizes. List must be descending, separated by spaces and surrounded by quotes
+t			Number of threads [8]
+time			If True, will log the time for each step [False]
 
 ntEdit options:
-X                       Ratio of number of kmers in the k subset that should be missing in order to attempt fix (higher=stringent) [0.5]
-Y                       Ratio of number of kmers in the k subset that should be present to accept an edit (higher=stringent) [0.5]
+X			Ratio of number of kmers in the k subset that should be missing in order to attempt fix (higher=stringent) [0.5]
+Y			Ratio of number of kmers in the k subset that should be present to accept an edit (higher=stringent) [0.5]
 
 ABySS-bloom options:
-b                       Bloom filter size (e.g. 100M)
+b			Bloom filter size (e.g. 100M)
 
 Sealer options:
-L                       Length of flanks to be used as pseudoreads [100]
-P                       Maximum alternate paths to merge; use 'nolimit' for no limit [10]
+L			Length of flanks to be used as pseudoreads [100]
+P			Maximum alternate paths to merge; use 'nolimit' for no limit [10]
 
 Notes:
  - Pass all parameter list values (reads, k) as space-separated values surrounded by quotation marks, e.g. k='80 65 50'
