@@ -31,6 +31,7 @@ def get_cli_args():
   parser.add_argument('--mx-threshold', type=int, default=23)
   parser.add_argument('-b', '--b1size', default=1, type=int, help="Batch 1 size.")
   parser.add_argument('-B', '--b2size', default=128, type=int, help="Batch 2 size.")
+  parser.add_argument('-v', '--verbose', action='store_true')
 
   args = parser.parse_args()
   args.to_polish = abspath(args.to_polish)
@@ -101,7 +102,7 @@ def make_tmp_dir(workspace, prefix, suffix):
   os.mkdir(tmp_dir)
   return tmp_dir
 
-def polish_batch(tmp_dir, input_pipepath, confirm_pipepath, to_polish, batch_idx, record_ids, batch_confirmpipe, bfs_dir):
+def polish_batch(tmp_dir, input_pipepath, confirm_pipepath, to_polish, batch_idx, record_ids, batch_confirmpipe, bfs_dir, verbose):
   with open(input_pipepath, 'w') as f: print(batch_idx, file=f)
   with open(confirm_pipepath)    as f: f.read()
 
@@ -118,7 +119,7 @@ def polish_batch(tmp_dir, input_pipepath, confirm_pipepath, to_polish, batch_idx
     str(batch_idx),
     batch_confirmpipe,
     bfs_dir
-  ], cwd=tmp_dir)
+  ] + ([ '--verbose' ] if verbose else []), cwd=tmp_dir)
   watch_process(process)
 
 def wait_on_batch(batch_confirm_pipepath):
@@ -131,7 +132,7 @@ def write_batch_results(tmp_dir, to_polish, writer):
       for record in tmpreader:
         writer.write(record.id, record.comment, record.seq)
 
-def polish_seqs(reader, writer, to_polish, reads, K, kmer_threshold, mx_threshold, batch1_size, batch2_size):
+def polish_seqs(reader, writer, to_polish, reads, K, kmer_threshold, mx_threshold, batch1_size, batch2_size, verbose):
   cwd = os.getcwd()
 
   # Work in shared memory if possible
@@ -189,7 +190,7 @@ def polish_seqs(reader, writer, to_polish, reads, K, kmer_threshold, mx_threshol
       reader_done = get_next_batch_of_contigs(reader, record_ids, join(tmp_dir, contig_tmppath), batch1_size)
 
       if len(record_ids) > 0:
-        polish_batch(tmp_dir, input_pipepath, confirm_pipepath, contig_tmppath, batch2_idx, record_ids, batch2_confirmpipe, bfs_dir)
+        polish_batch(tmp_dir, input_pipepath, confirm_pipepath, contig_tmppath, batch2_idx, record_ids, batch2_confirmpipe, bfs_dir, verbose)
       else:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         batch2_paths.pop()
@@ -209,4 +210,4 @@ if __name__ == "__main__":
   args = get_cli_args()
 
   with btllib.SeqReader(args.to_polish, btllib.SeqReaderFlag.LONG_MODE) as reader, btllib.SeqWriter(args.output) as writer:
-    polish_seqs(reader, writer, args.to_polish, args.reads, args.K, args.kmer_threshold, args.mx_threshold, args.b1size, args.b2size)
+    polish_seqs(reader, writer, args.to_polish, args.reads, args.K, args.kmer_threshold, args.mx_threshold, args.b1size, args.b2size, args.verbose)
