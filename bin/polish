@@ -6,7 +6,7 @@ import sys
 import os
 import subprocess as sp
 from os.path import join, dirname, realpath, abspath, isfile, isdir, exists, splitext, basename, getsize
-sys.path.append(join(realpath(dirname(__file__)), '../btllib/python'))
+sys.path.append(join(realpath(dirname(__file__)), '../btllib/install/python'))
 import btllib
 import multiprocessing
 from multiprocessing import Pool, Lock, Queue, Manager

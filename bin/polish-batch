@@ -6,7 +6,7 @@ import uuid
 import base64
 import argparse
 from os.path import join, dirname, realpath, abspath, isfile, exists, splitext, basename
-sys.path.append(join(realpath(dirname(__file__)), '../btllib/python'))
+sys.path.append(join(realpath(dirname(__file__)), '../btllib/install/python'))
 import btllib
 import subprocess as sp
 import threading
