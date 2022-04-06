@@ -39,7 +39,7 @@ namespace opt {
   size_t cbf_bytes = 10ULL * 1024ULL * 1024ULL;
   size_t bf_bytes = 512ULL * 1024ULL;
   unsigned kmer_threshold = 5;
-  unsigned mx_threshold = 5;
+  unsigned mx_threshold = 10;
   std::string prefix = "targeted";
   std::vector<unsigned> ks = { 32, 28, 24, 20 };
   bool ks_set = false;
@@ -105,6 +105,7 @@ serve_set(const std::string& set_prefix,
     }
 #pragma omp taskwait
   }
+  inputstream.close();
 
   for (size_t i = 0; i < bfs.size(); i++) {
     bfs[i]->save(bf_paths[i]);
@@ -112,6 +113,7 @@ serve_set(const std::string& set_prefix,
 
   std::ofstream outputstream(set_confirm_pipepath);
   outputstream << "1" << std::endl;
+  outputstream.close();
 
   std::remove(set_input_pipepath.c_str());
   std::remove(set_confirm_pipepath.c_str());
@@ -153,6 +155,7 @@ void serve(const std::string& contigs_filepath,
     std::ifstream inputstream(input_pipepath);
 
     if (!(inputstream >> set_prefix)) { break; }
+    inputstream.close();
     if (set_prefix == END_SYMBOL) { break; }
 
     const auto set_input_pipepath = input_pipepath_dirname + '/' + set_prefix + SEPARATOR + input_pipepath_basename;
@@ -161,11 +164,12 @@ void serve(const std::string& contigs_filepath,
     btllib::check_error(mkfifo(set_input_pipepath.c_str(), S_IRUSR | S_IWUSR) != 0, "mkfifo failed.");
     btllib::check_error(mkfifo(set_confirm_pipepath.c_str(), S_IRUSR | S_IWUSR) != 0, "mkfifo failed.");
 
-#pragma omp task firstprivate(set_prefix, set_input_pipepath, set_confirm_pipepath) shared(bf_paths_base, ks, contigs_filepath, contigs_index, contigs_reads, reads_filepath, reads_index)
-    serve_set(set_prefix, set_input_pipepath, set_confirm_pipepath, bf_paths_base, ks, cbf_bytes, bf_bytes, kmer_threshold, hash_num, contigs_filepath, contigs_index, contigs_reads, reads_filepath, reads_index);
-
     std::ofstream outputstream(confirm_pipepath);
     outputstream << "1" << std::endl;
+    outputstream.close();
+
+#pragma omp task firstprivate(set_prefix, set_input_pipepath, set_confirm_pipepath) shared(bf_paths_base, ks, contigs_filepath, contigs_index, contigs_reads, reads_filepath, reads_index)
+    serve_set(set_prefix, set_input_pipepath, set_confirm_pipepath, bf_paths_base, ks, cbf_bytes, bf_bytes, kmer_threshold, hash_num, contigs_filepath, contigs_index, contigs_reads, reads_filepath, reads_index);
   }
   btllib::log_info("Targeted BF builder done!");
 
