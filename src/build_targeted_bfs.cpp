@@ -23,7 +23,10 @@
 #include <unistd.h>
 #include <omp.h>
 
-static const double MAX_READS_PER_CONTIG_10KBP = 100.0;
+static const double SUBSAMPLE_MAX_READS_PER_CONTIG_10KBP = 120.0;
+static const double MX_MAX_READS_PER_CONTIG_10KBP = 300.0;
+static const unsigned MX_THRESHOLD_MIN = 5;
+static const unsigned MX_THRESHOLD_MAX = 25;
 static const std::string INPIPE = "input";
 static const std::string CONFIRMPIPE = "confirm";
 static const std::string SEPARATOR = "_";
@@ -38,8 +41,7 @@ namespace opt {
   std::string reads_index_filepath;
   size_t cbf_bytes = 10ULL * 1024ULL * 1024ULL;
   size_t bf_bytes = 512ULL * 1024ULL;
-  unsigned kmer_threshold = 5;
-  unsigned mx_threshold = 10;
+  unsigned kmer_threshold = 6;
   std::string prefix = "targeted";
   std::vector<unsigned> ks = { 32, 28, 24, 20 };
   bool ks_set = false;
@@ -92,14 +94,14 @@ serve_set(const std::string& set_prefix,
 
     const auto& contig_reads_vector = contigs_reads_it->second;
     const auto contig_reads_num = contig_reads_vector.size();
-    const auto contig_reads_num_adjusted = std::min(contig_reads_num, decltype(contig_reads_num)(double(std::strlen(contig_seq)) / 10'000.0 * MAX_READS_PER_CONTIG_10KBP));
+    const auto contig_reads_num_adjusted = std::min(contig_reads_num, decltype(contig_reads_num)((double(contig_len) * SUBSAMPLE_MAX_READS_PER_CONTIG_10KBP) / 10'000.0));
 
     const auto random_indices = get_random_indices(contig_reads_num, contig_reads_num_adjusted);
 
     for (const auto read_id_idx : random_indices)
 #pragma omp task firstprivate(read_id_idx) shared(bfs, cbfs, contig_reads_vector, reads_index, reads_filepath, ks)
     {
-      const auto read_id = contig_reads_vector[read_id_idx];
+      const auto read_id = contig_reads_vector[read_id_idx].seq_id;
       const auto [seq, seq_len] = get_seq_with_index<2>(read_id, reads_index, reads_filepath);
       fill_bfs(seq, seq_len, hash_num, ks, kmer_threshold, cbfs, bfs);
     }
@@ -178,7 +180,7 @@ void serve(const std::string& contigs_filepath,
 }
 
 int main(int argc, char** argv) {
-  btllib::check_error(argc != 8, "Wrong args.");
+  btllib::check_error(argc != 7, "Wrong args.");
 
   start_watchdog();
 
@@ -189,17 +191,17 @@ int main(int argc, char** argv) {
   opt::reads_filepath = argv[arg++];
   opt::reads_index_filepath = argv[arg++];
   opt::kmer_threshold = std::stoi(argv[arg++]);
-  opt::mx_threshold = std::stoi(argv[arg++]);
 
   omp_set_nested(1);
   omp_set_num_threads(opt::threads);
 
-  ReadsMapping contigs_reads;
   Index reads_index, contigs_index;
-  
-  load_reads_mapping(contigs_reads, opt::contigs_reads_filepath, opt::mx_threshold);
   load_index(contigs_index, opt::contigs_index_filepath);
   load_index(reads_index, opt::reads_index_filepath);
+
+  ReadsMapping contigs_reads;
+  load_reads_mapping(contigs_reads, opt::contigs_reads_filepath, MX_THRESHOLD_MIN);
+  filter_read_mappings(contigs_reads, MX_MAX_READS_PER_CONTIG_10KBP, MX_THRESHOLD_MIN, MX_THRESHOLD_MAX, contigs_index);
 
   serve(opt::contigs_filepath,
         contigs_index,

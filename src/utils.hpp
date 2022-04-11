@@ -11,6 +11,13 @@
 
 using SeqId = std::string;
 
+struct ReadMapping {
+  SeqId seq_id;
+  unsigned mx_in_common;
+
+  ReadMapping(const SeqId& seq_id, const unsigned mx_in_common) : seq_id(seq_id), mx_in_common(mx_in_common) {}
+};
+
 struct SeqCoordinates {
   size_t seq_start, seq_len;
 
@@ -19,7 +26,7 @@ struct SeqCoordinates {
     , seq_len(seq_len) {}
 };
 
-using ReadsMapping = std::unordered_map<SeqId, std::vector<SeqId>>;
+using ReadsMapping = std::unordered_map<SeqId, std::vector<ReadMapping>>;
 using Index = std::unordered_map<SeqId, SeqCoordinates>;
 
 std::vector<size_t>
@@ -29,7 +36,10 @@ void
 load_index(Index& index, const std::string& filepath);
 
 void
-load_reads_mapping(ReadsMapping& reads_mapping, const std::string& filepath, const unsigned mx_threshold);
+load_reads_mapping(ReadsMapping& reads_mapping, const std::string& filepath, unsigned mx_threshold_min);
+
+void
+filter_read_mappings(ReadsMapping& reads_mapping, double max_reads_per_contig_10kbp, unsigned mx_threshold_min, unsigned mx_threshold_max, Index& contigs_index);
 
 void
 fill_bfs(const char* seq,
@@ -62,7 +72,7 @@ get_seq_with_index(const std::string& id,
   thread_local static std::ifstream *seqs_file;
   thread_local static bool seqs_file_initialized = false;
 
-  static const size_t max_seqlen = 300'000UL;
+  static const size_t max_seqlen = 1024ULL * 1024ULL;
   thread_local static char* seq;
   thread_local static bool seq_initialized = false;
 

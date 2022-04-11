@@ -15,6 +15,7 @@
 #include <vector>
 #include <utility>
 #include <string>
+#include <limits>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -36,6 +37,10 @@ std::vector<size_t> get_random_indices(const size_t total_size, const size_t cou
 
 void load_index(Index& index, const std::string& filepath) {
   btllib::log_info(std::string("load_index: Loading index from ") + filepath + "... ");
+  
+  // Parameter sanity check
+  btllib::check_error(!index.empty(), "load_index: index is not empty.");
+
   std::ifstream ifs(filepath);
   std::string token, id;
   unsigned long id_start, id_end, seq_end;
@@ -60,8 +65,12 @@ void load_index(Index& index, const std::string& filepath) {
   btllib::log_info("load_index: Done!");
 }
 
-void load_reads_mapping(ReadsMapping& reads_mapping, const std::string& filepath, const unsigned mx_threshold) {
+void load_reads_mapping(ReadsMapping& reads_mapping, const std::string& filepath, const unsigned mx_threshold_min) {
   btllib::log_info(std::string("load_reads_mapping: Loading contig reads from ") + filepath + "... ");
+
+  // Parameter sanity check
+  btllib::check_error(!reads_mapping.empty(), "load_reads_mapping: reads_mapping is not empty.");
+
   std::ifstream ifs(filepath);
   std::string token, read_id, contig_id;
   unsigned long i = 0;
@@ -72,12 +81,12 @@ void load_reads_mapping(ReadsMapping& reads_mapping, const std::string& filepath
       case 2: {
         auto it = reads_mapping.find(contig_id);
         if (it == reads_mapping.end()) {
-          const auto emplacement = reads_mapping.emplace(contig_id, std::vector<SeqId>());
+          const auto emplacement = reads_mapping.emplace(contig_id, std::vector<ReadMapping>());
           it = emplacement.first;
         }
         const auto minimizers = std::stoul(token);
-        if (minimizers >= mx_threshold) {
-          it->second.push_back(read_id);
+        if (minimizers >= mx_threshold_min) {
+          it->second.push_back(ReadMapping(read_id, minimizers));
         }
         break;
       }
@@ -89,6 +98,81 @@ void load_reads_mapping(ReadsMapping& reads_mapping, const std::string& filepath
     i++;
   }
   btllib::log_info("load_reads_mapping: Done!");
+}
+
+unsigned reads_for_threshold(const std::vector<ReadMapping>& mappings, const unsigned mx_threshold) {
+  unsigned read_num = 0;
+  std::for_each(mappings.begin(), mappings.end(), [&](const ReadMapping& mapping) {
+    if (mapping.mx_in_common >= mx_threshold) {
+      read_num++;
+    }
+  });
+  return read_num;
+}
+
+void
+filter_read_mappings(ReadsMapping& reads_mapping, const double max_reads_per_contig_10kbp, const unsigned mx_threshold_min, const unsigned mx_threshold_max, Index& contigs_index) {
+  btllib::log_info(std::string("filter_read_mappings: Filtering contig reads... "));
+
+  // Parameter sanity check
+  btllib::check_error(reads_mapping.empty(), "filter_read_mappings: reads_mapping is empty.");
+  btllib::check_error(contigs_index.empty(), "filter_read_mappings: contigs_index is empty.");
+  btllib::check_error(max_reads_per_contig_10kbp <= 0, "filter_read_mappings: max_reads_per_contig_10kbp is not positive.");
+  btllib::check_error(mx_threshold_min >= mx_threshold_max, "filter_read_mappings: mx_threshold_min is not smaller than mx_threshold_max.");
+
+  for (auto& contig_mappings : reads_mapping) {
+    const auto& contig_id = contig_mappings.first;
+    const auto& mappings = contig_mappings.second;
+    if (mappings.empty()) { continue; }
+
+    const auto contig_len = contigs_index.at(contig_id).seq_len;
+    const int max_reads = std::ceil(double(contig_len) * max_reads_per_contig_10kbp / 10'000.0);
+    btllib::check_error(max_reads <= 0, "filter_read_mappings: max_reads <= 0.");
+
+    int updated_mx_threshold_min = mx_threshold_min;
+    int updated_mx_threshold_min_reads = mappings.size();
+
+    int updated_mx_threshold_max = mx_threshold_max;
+    int updated_mx_threshold_max_reads = reads_for_threshold(mappings, updated_mx_threshold_max);
+
+    int mx_threshold = -1;
+    if (updated_mx_threshold_min_reads <= max_reads) {
+      mx_threshold = updated_mx_threshold_min;
+    } else if (updated_mx_threshold_max_reads > max_reads) {
+      mx_threshold = updated_mx_threshold_max;
+    } else {
+      while (updated_mx_threshold_max - updated_mx_threshold_min > 1) {
+        const int mx_threshold_mid = (updated_mx_threshold_max + updated_mx_threshold_min) / 2;
+        const int mx_threshold_mid_reads = reads_for_threshold(mappings, mx_threshold_mid);
+        if (mx_threshold_mid_reads > max_reads) {
+          updated_mx_threshold_min = mx_threshold_mid;
+          updated_mx_threshold_min_reads = mx_threshold_mid_reads;
+        } else {
+          updated_mx_threshold_max = mx_threshold_mid;
+          updated_mx_threshold_max_reads = mx_threshold_mid_reads;
+        }
+      }
+      mx_threshold = mx_threshold_max;
+
+      btllib::check_error(std::abs(updated_mx_threshold_min - updated_mx_threshold_max) > 1, "filter_read_mappings: abs(updated_mx_threshold_min - updated_mx_threshold_max) > 1.");
+      btllib::check_error(updated_mx_threshold_min_reads <= max_reads, "filter_read_mappings: Min threshold wrongly calculated.");
+      btllib::check_error(updated_mx_threshold_max_reads > max_reads, "filter_read_mappings: Max threshold wrongly calculated.");
+      btllib::check_error(updated_mx_threshold_min >= updated_mx_threshold_max, "filter_read_mappings: updated_mx_threshold_min >= updated_mx_threshold_max.");
+    }
+
+    btllib::check_error(mx_threshold < 0, "filter_read_mappings: mx_threshold < 0.");
+    btllib::check_error(mx_threshold < mx_threshold_min, "filter_read_mappings: mx_threshold < mx_threshold_min.");
+    btllib::check_error(mx_threshold > mx_threshold_max, "filter_read_mappings: mx_threshold > mx_threshold_max.");
+
+    decltype(contig_mappings.second) new_mappings;
+    std::for_each(mappings.begin(), mappings.end(), [&](const ReadMapping& mapping) {
+      if (mapping.mx_in_common >= mx_threshold) {
+        new_mappings.push_back(mapping);
+      }
+    });
+    contig_mappings.second = new_mappings;
+  }
+  btllib::log_info("filter_read_mappings: Done!");
 }
 
 void fill_bfs(const char* seq,
