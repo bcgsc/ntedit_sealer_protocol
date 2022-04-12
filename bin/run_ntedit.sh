@@ -15,6 +15,8 @@ Y=$1; shift
 t=$1; shift
 outfile=$1; shift
 
+input_size=$(wc -c ${seqs_basename}.fa | awk '{ print $1 }')
+
 for i in "${!k[@]}"; do
   # Set input sequence for ntEdit
   if test -z "$prev"; then
@@ -26,4 +28,11 @@ for i in "${!k[@]}"; do
   prev=${input}.k${k[$i]}.X${X}.Y${Y}_edited
 done
 
-ln -sf ${prev}.fa ${outfile}
+# If ntEdit made a mistake and trimmed the hell outta the input sequence, just ignore the output
+output_size=$(wc -c ${prev}.fa | awk '{ print $1 }')
+size_diff=$((input_size-output_size))
+if [[ ${size_diff} -gt 5000 ]]; then
+  ln -sf ${seqs_basename}.fa ${outfile}
+else
+  ln -sf ${prev}.fa ${outfile}
+fi
