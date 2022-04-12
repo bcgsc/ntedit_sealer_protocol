@@ -12,7 +12,7 @@ def extend_gaps(reads_filename, args):
     with open(reads_filename, 'r') as fin:
         for line in fin:
             line = line.strip()
-            if line[0] == ">":
+            if line.startswith('>'):
                 print(line)
             else:
                 if len(line) < 2*args.k:

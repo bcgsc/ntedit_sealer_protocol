@@ -152,7 +152,7 @@ filter_read_mappings(ReadsMapping& reads_mapping, const double max_reads_per_con
           updated_mx_threshold_max_reads = mx_threshold_mid_reads;
         }
       }
-      mx_threshold = mx_threshold_max;
+      mx_threshold = updated_mx_threshold_max;
 
       btllib::check_error(std::abs(updated_mx_threshold_min - updated_mx_threshold_max) > 1, "filter_read_mappings: abs(updated_mx_threshold_min - updated_mx_threshold_max) > 1.");
       btllib::check_error(updated_mx_threshold_min_reads <= max_reads, "filter_read_mappings: Min threshold wrongly calculated.");
