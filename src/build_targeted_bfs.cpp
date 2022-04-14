@@ -46,7 +46,7 @@ namespace opt {
   std::vector<unsigned> ks = { 32, 28, 24, 20 };
   bool ks_set = false;
   unsigned hash_num = 4;
-  unsigned threads = 48;
+  unsigned threads = 18;
 }
 
 void
