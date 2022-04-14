@@ -33,6 +33,7 @@ output_size=$(wc -c ${prev}.fa | awk '{ print $1 }')
 size_diff=$((input_size-output_size))
 if [[ ${size_diff} -gt 5000 ]]; then
   ln -sf ${seqs_basename}.fa ${outfile}
+  echo "run_ntedit.sh: skipped ${seqs_basename}.fa"
 else
   ln -sf ${prev}.fa ${outfile}
 fi

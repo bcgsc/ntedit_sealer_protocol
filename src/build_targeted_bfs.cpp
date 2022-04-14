@@ -24,8 +24,8 @@
 #include <omp.h>
 
 static const double SUBSAMPLE_MAX_READS_PER_CONTIG_10KBP = 120.0;
-static const double MX_MAX_READS_PER_CONTIG_10KBP = 300.0;
-static const unsigned MX_THRESHOLD_MIN = 5;
+static const double MX_MAX_READS_PER_CONTIG_10KBP = 150.0;
+static const unsigned MX_THRESHOLD_MIN = 2;
 static const unsigned MX_THRESHOLD_MAX = 25;
 static const std::string INPIPE = "input";
 static const std::string CONFIRMPIPE = "confirm";
@@ -200,8 +200,12 @@ int main(int argc, char** argv) {
   load_index(reads_index, opt::reads_index_filepath);
 
   ReadsMapping contigs_reads;
-  load_reads_mapping(contigs_reads, opt::contigs_reads_filepath, MX_THRESHOLD_MIN);
-  filter_read_mappings(contigs_reads, MX_MAX_READS_PER_CONTIG_10KBP, MX_THRESHOLD_MIN, MX_THRESHOLD_MAX, contigs_index);
+  if (btllib::endswith(opt::contigs_reads_filepath, ".sam") || btllib::endswith(opt::contigs_reads_filepath, ".bam")) {
+    load_reads_mapping_sam(contigs_reads, opt::contigs_reads_filepath, contigs_index);
+  } else {
+    load_reads_mapping(contigs_reads, opt::contigs_reads_filepath, contigs_index, MX_THRESHOLD_MIN);
+    filter_read_mappings(contigs_reads, MX_MAX_READS_PER_CONTIG_10KBP, MX_THRESHOLD_MIN, MX_THRESHOLD_MAX, contigs_index);
+  }
 
   serve(opt::contigs_filepath,
         contigs_index,

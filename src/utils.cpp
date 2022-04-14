@@ -4,6 +4,7 @@
 #include "btllib/nthash.hpp"
 #include "btllib/bloom_filter.hpp"
 #include "btllib/counting_bloom_filter.hpp"
+#include "btllib/data_stream.hpp"
 
 #include <algorithm>
 #include <cstdlib>
@@ -16,6 +17,8 @@
 #include <utility>
 #include <string>
 #include <limits>
+#include <sstream>
+#include <cstdio>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -65,7 +68,7 @@ void load_index(Index& index, const std::string& filepath) {
   btllib::log_info("load_index: Done!");
 }
 
-void load_reads_mapping(ReadsMapping& reads_mapping, const std::string& filepath, const unsigned mx_threshold_min) {
+void load_reads_mapping(ReadsMapping& reads_mapping, const std::string& filepath, const Index& contigs_index, const unsigned mx_threshold_min) {
   btllib::log_info(std::string("load_reads_mapping: Loading contig reads from ") + filepath + "... ");
 
   // Parameter sanity check
@@ -79,6 +82,9 @@ void load_reads_mapping(ReadsMapping& reads_mapping, const std::string& filepath
       case 0: read_id = std::move(token); break;
       case 1: contig_id = std::move(token); break;
       case 2: {
+        if (contigs_index.find(contig_id) == contigs_index.end()) {
+          break;
+        }
         auto it = reads_mapping.find(contig_id);
         if (it == reads_mapping.end()) {
           const auto emplacement = reads_mapping.emplace(contig_id, std::vector<ReadMapping>());
@@ -125,6 +131,9 @@ filter_read_mappings(ReadsMapping& reads_mapping, const double max_reads_per_con
     const auto& mappings = contig_mappings.second;
     if (mappings.empty()) { continue; }
 
+    if (contigs_index.find(contig_id) == contigs_index.end()) {
+      continue;
+    }
     const auto contig_len = contigs_index.at(contig_id).seq_len;
     const int max_reads = std::ceil(double(contig_len) * max_reads_per_contig_10kbp / 10'000.0);
     btllib::check_error(max_reads <= 0, "filter_read_mappings: max_reads <= 0.");
@@ -173,6 +182,51 @@ filter_read_mappings(ReadsMapping& reads_mapping, const double max_reads_per_con
     contig_mappings.second = new_mappings;
   }
   btllib::log_info("filter_read_mappings: Done!");
+}
+
+void
+load_reads_mapping_sam(ReadsMapping& reads_mapping, const std::string& filepath, const Index& contigs_index) {
+  btllib::log_info(std::string("load_reads_mapping_sam: Loading contig reads from ") + filepath + "... ");
+
+  // Parameter sanity check
+  btllib::check_error(!reads_mapping.empty(), "load_reads_mapping: reads_mapping is not empty.");
+
+  size_t n = 1024;
+  char* line = new char[n];
+  btllib::DataSource data_source(filepath);
+
+  std::string token, read_id, contig_id;
+  unsigned long i = 0;
+  while (getline(&line, &n, data_source)) {
+    if (n > 0 && line[0] == '@') {
+      continue;
+    }
+    std::stringstream ss(line);
+    while (ss >> token) {
+      switch (i % 3) {
+        case 0: read_id = std::move(token); break;
+        case 2: contig_id = std::move(token); break;
+        case 4: {
+          if (contigs_index.find(contig_id) == contigs_index.end()) {
+            break;
+          }
+          auto it = reads_mapping.find(contig_id);
+          if (it == reads_mapping.end()) {
+            const auto emplacement = reads_mapping.emplace(contig_id, std::vector<ReadMapping>());
+            it = emplacement.first;
+          }
+          it->second.push_back(ReadMapping(read_id, 0));
+          break;
+        }
+        default: {
+          btllib::log_error("load_reads_mapping_sam: Invalid switch branch.");
+          std::exit(EXIT_FAILURE);
+        }
+      }
+      i++;
+    }
+  }
+  btllib::log_info("load_reads_mapping_sam: Done!");
 }
 
 void fill_bfs(const char* seq,

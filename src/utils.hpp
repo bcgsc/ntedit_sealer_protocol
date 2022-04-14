@@ -36,10 +36,13 @@ void
 load_index(Index& index, const std::string& filepath);
 
 void
-load_reads_mapping(ReadsMapping& reads_mapping, const std::string& filepath, unsigned mx_threshold_min);
+load_reads_mapping(ReadsMapping& reads_mapping, const std::string& filepath, const Index& contigs_index, unsigned mx_threshold_min);
 
 void
 filter_read_mappings(ReadsMapping& reads_mapping, double max_reads_per_contig_10kbp, unsigned mx_threshold_min, unsigned mx_threshold_max, Index& contigs_index);
+
+void
+load_reads_mapping_sam(ReadsMapping& reads_mapping, const std::string& filepath, const Index& contigs_index);
 
 void
 fill_bfs(const char* seq,
