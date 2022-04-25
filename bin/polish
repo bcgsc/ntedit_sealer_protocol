@@ -158,9 +158,9 @@ def polish_seqs(reader, writer, to_polish, reads, K, kmer_threshold, batch1_size
   contig_tmppath = "contig.tmp.fa"
 
   # Indexes and read mapping filenames
-  to_polish_index = f"{splitext(basename(to_polish))[0]}.index"
+  to_polish_index = f"{basename(to_polish)}.index"
   to_polish_read_mapping = f"{splitext(basename(to_polish))[0]}.read_mapping.tsv"
-  reads_index = f"{splitext(basename(reads))[0]}.index"
+  reads_index = f"{basename(reads)}.index"
 
   # The pipe to communicate with the processes of level two batching
   batch2_confirmpipe = "confirmpipe"

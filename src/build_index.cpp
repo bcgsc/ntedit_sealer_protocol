@@ -14,17 +14,29 @@ int main (int argc, char** argv) {
   std::ifstream readsfile(argv[arg++]);
   std::ofstream indexfile(argv[arg++]);
 
+  bool fastq = readsfile.peek() == '@' ? true : false;
+
   std::string line;
   std::string id;
   long i = 0, byte = 0, id_startbyte = 0, id_endbyte = 0;
   while (std::getline(readsfile, line)) {
     const auto endbyte = byte + line.size();
-    if (i % 2 == 0) {
-      id_startbyte = byte + 1;
-      id_endbyte = endbyte;
-      id = btllib::split(line, " ")[0].substr(1);
+    if (fastq) {
+      if (i % 4 == 0) {
+        id_startbyte = byte + 1;
+        id_endbyte = endbyte;
+        id = btllib::split(line, " ")[0].substr(1);
+      } else if (i % 4 == 1) {
+        indexfile << id << '\t' << id_startbyte << '\t' << id_endbyte << '\t' << endbyte << '\n';
+      }
     } else {
-      indexfile << id << '\t' << id_startbyte << '\t' << id_endbyte << '\t' << endbyte << '\n';
+      if (i % 2 == 0) {
+        id_startbyte = byte + 1;
+        id_endbyte = endbyte;
+        id = btllib::split(line, " ")[0].substr(1);
+      } else {
+        indexfile << id << '\t' << id_startbyte << '\t' << id_endbyte << '\t' << endbyte << '\n';
+      }
     }
     byte = endbyte + 1;
     i++;

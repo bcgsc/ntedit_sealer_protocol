@@ -59,7 +59,7 @@ all: $(seqs_basename).ntedit-sealer-polished.fa
 %.upper.fa: %.fa
 	$(log_time) $(root)/bin/to-upper $< $@
 
-%.index: %.fa
+%.index: %
 	$(log_time) $(root)/src/build_index $< $@
 
 $(seqs_notdir).k32.w100.z1000.verbose_mapping.tsv: $(seqs) $(reads)
