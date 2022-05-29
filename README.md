@@ -91,12 +91,12 @@ Curr. Protocols. 2022. 2:e442
 
 [ntEdit: scalable genome sequence polishing](http://dx.doi.org/10.1093/bioinformatics/btz400)
 <pre>
-ntEdit: scalable genome sequence polishing.
+ntEdit: Scalable Genome Sequence Polishing.
 Warren RL, Coombe L, Mohamadi H, Zhang J, Jaquish B, Isabel N, Jones SJM, Bousquet J, Bohlmann J, Birol I.
 Bioinformatics. 2019. Nov 1;35(21):4430-4432. doi: 10.1093/bioinformatics/btz400.
 </pre>
 
-[ntEdit: scalable genome sequence polishing](http://dx.doi.org/10.1093/bioinformatics/btz400)
+[Sealer: A Scalable Gap-closing Application for Finishing Draft Genomes](http://dx.doi.org/10.1186/s12859-015-0663-4)
 <pre>
 Sealer: a scalable gap-closing application for finishing draft genomes. 
 Paulino D*, Warren RL*, Vandervalk BP, Raymond A, Jackman SD, Birol I. 
