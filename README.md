@@ -89,16 +89,16 @@ Li JX, Coombe L, Wong J, Birol I, Warren RL.
 Curr. Protocols. 2022. 2:e442 
 </pre>
 
-[ntEdit: scalable genome sequence polishing](http://dx.doi.org/10.1093/bioinformatics/btz400)
+[ntEdit: Scalable Genome Sequence Polishing](http://dx.doi.org/10.1093/bioinformatics/btz400)
 <pre>
-ntEdit: Scalable Genome Sequence Polishing.
+ntEdit: Scalable genome sequence polishing.
 Warren RL, Coombe L, Mohamadi H, Zhang J, Jaquish B, Isabel N, Jones SJM, Bousquet J, Bohlmann J, Birol I.
 Bioinformatics. 2019. Nov 1;35(21):4430-4432. doi: 10.1093/bioinformatics/btz400.
 </pre>
 
 [Sealer: A Scalable Gap-closing Application for Finishing Draft Genomes](http://dx.doi.org/10.1186/s12859-015-0663-4)
 <pre>
-Sealer: a scalable gap-closing application for finishing draft genomes. 
+Sealer: A scalable gap-closing application for finishing draft genomes. 
 Paulino D*, Warren RL*, Vandervalk BP, Raymond A, Jackman SD, Birol I. 
 BMC Bioinformatics. 2015. 16:230
 </pre>
