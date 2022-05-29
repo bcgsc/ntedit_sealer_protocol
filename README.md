@@ -73,3 +73,54 @@ Notes:
 ```
 
 Running `ntedit-sealer help` prints the help documentation.
+
+### Citing ntEdit-Sealer, ntEdit and Sealer
+------------
+
+Thank you for your [![Stars](https://img.shields.io/github/stars/bcgsc/ntedit_sealer_protocol.svg)](https://github.com/bcgsc/ntedit_sealer_protocol/stargazers) and for using, developing and promoting this free software!
+
+If you use ntEdit-Sealer, ntEdit or Sealer in your research, please cite:
+
+
+[ntEdit+Sealer: Efficient Targeted Error Resolution and Automated Finishing of Long-Read Genome Assemblies](https://doi.org/10.1002/cpz1.442)
+<pre>
+ntEdit+Sealer: Efficient targeted error resolution and automated finishing of long-read genome assemblies.
+Li JX, Coombe L, Wong J, Birol I, Warren RL. 
+Curr. Protocols. 2022. 2:e442 
+</pre>
+
+[ntEdit: scalable genome sequence polishing](http://dx.doi.org/10.1093/bioinformatics/btz400)
+<pre>
+ntEdit: scalable genome sequence polishing.
+Warren RL, Coombe L, Mohamadi H, Zhang J, Jaquish B, Isabel N, Jones SJM, Bousquet J, Bohlmann J, Birol I.
+Bioinformatics. 2019. Nov 1;35(21):4430-4432. doi: 10.1093/bioinformatics/btz400.
+</pre>
+
+[ntEdit: scalable genome sequence polishing](http://dx.doi.org/10.1093/bioinformatics/btz400)
+<pre>
+Sealer: a scalable gap-closing application for finishing draft genomes. 
+Paulino D*, Warren RL*, Vandervalk BP, Raymond A, Jackman SD, Birol I. 
+BMC Bioinformatics. 2015. 16:230
+</pre>
+
+### License
+-------
+
+ntEdit-Sealer Copyright (c) 2015-2022 British Columbia Cancer Agency Branch.  All rights reserved.
+
+ntEdit and Sealer are released under the GNU General Public License v3
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, version 3.
+ 
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+ 
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+ 
+For commercial licensing options, please contact
+Patrick Rebstein <prebstein@bccancer.bc.ca>
