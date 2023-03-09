@@ -8,7 +8,7 @@ An automated protocol for finishing long-read genome assemblies using short read
 
 - GNU Make
 - Python 3
-- [ntHits](https://github.com/bcgsc/nthits) v0.0.1+
+- [ntHits](https://github.com/bcgsc/nthits) v0.0.1
 - [ntEdit](https://github.com/bcgsc/ntEdit) v1.3.5+
 - [ABySS](https://github.com/bcgsc/abyss) v2.3.2+ (includes Sealer and ABySS-Bloom)
 
