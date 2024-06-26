@@ -10,7 +10,7 @@ An automated protocol for finishing long-read genome assemblies using short read
 
 - GNU Make
 - Python 3
-- [ntHits](https://github.com/bcgsc/nthits) v0.0.1
+- [ntHits](https://github.com/bcgsc/nthits) v0.0.1+
 - [ntEdit](https://github.com/bcgsc/ntEdit) v1.3.5+
 - [ABySS](https://github.com/bcgsc/abyss) v2.3.2+ (includes Sealer and ABySS-Bloom)
 
@@ -19,7 +19,7 @@ An automated protocol for finishing long-read genome assemblies using short read
 The ntEdit+Sealer dependencies are available from [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/download.html):
 
 ```bash
-conda install -c bioconda nthits=0.0.1 ntedit abyss
+conda install -c bioconda nthits ntedit abyss
 ```
 
 All dependencies are also available from [Homebrew](https://docs.brew.sh/Installation):
