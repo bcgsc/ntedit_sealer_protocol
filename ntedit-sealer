@@ -95,9 +95,19 @@ ntedit: nthits $(seqs_basename).ntedit_edited.fa
 ntedit_sealer: abyss_bloom $(seqs_basename).ntedit_edited.prepd.sealer_scaffold.fa
 
 # Create bloom filters
+
+# ntCard - only needed for ntHits v1.0.0+
+ntcard_hist_k%.hist: $(reads)
+	$(log_time) ntcard -k$* -t$t -p ntcard_hist $(reads)
+
 # ntEdit BFs
+ifeq ($(shell nthits --version 2>&1 |grep "0.1.0"),) # Indicates ntHits v1.0.0+
+sr_solid_k%.bf: ntcard_hist_k%.hist $(reads)
+	$(log_time) nthits bf -f $< --solid -t $t -k $* -o sr_solid_k$* $(reads)
+else
 sr_solid_k%.bf: $(reads)
 	$(log_time) nthits -b36 --outbloom --solid -p sr_solid -k$* -t$t $(reads)
+endif
 
 # Sealer BFs
 k%.bloom.z: $(reads)
